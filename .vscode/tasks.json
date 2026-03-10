@@ -2,63 +2,36 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Prepare Output Directory",
+			"label": "Build Video Encoder",
 			"type": "shell",
-			"command": "cmd",
-			"args": [
-				"/d",
-				"/c",
-				"if not exist \"${workspaceFolder}\\output\" mkdir \"${workspaceFolder}\\output\""
-			],
-			"problemMatcher": []
-		},
-		{
-			"label": "Build Video Encoder (g++)",
-			"type": "shell",
-			"dependsOn": "Prepare Output Directory",
-			"dependsOrder": "sequence",
 			"command": "g++",
 			"args": [
 				"-std=c++17",
 				"-O2",
 				"-Wall",
 				"-Wextra",
-				"-I${workspaceFolder}\\include",
-				"-I${workspaceFolder}\\third_party\\qrcodegen",
-				"${workspaceFolder}\\src\\main.cpp",
-				"${workspaceFolder}\\src\\encode.cpp",
-				"${workspaceFolder}\\third_party\\qrcodegen\\qrcodegen.cpp",
+				"-I${workspaceFolder}\\Encoder\\include",
+				"${workspaceFolder}\\Encoder\\src",
 				"-lstdc++fs",
 				"-o",
 				"${workspaceFolder}\\output\\qr_video_encoder.exe"
 			],
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"isBackground": false,
 			"group": "build",
-			"detail": "Build QR video encoder with g++ from src/include/third_party layout."
+			"detail": "Build QR video encoder with g++."
 		},
 		{
-			"label": "Run Encoder",
+			"label": "Run Encoder Demo",
 			"type": "shell",
-			"dependsOn": [
-				"Prepare Output Directory",
-				"Build Video Encoder (g++)"
-			],
+			"dependsOn": ["Build Video Encoder (g++)"],
 			"dependsOrder": "sequence",
 			"command": "${workspaceFolder}\\output\\qr_video_encoder.exe",
 			"args": [
-				"${workspaceFolder}\\test.jpg",
-				"${workspaceFolder}\\output\\min_qr.mp4",
+				"${workspaceFolder}\\output\\test.jpg",
+				"${workspaceFolder}\\output\\qr_video.mp4",
 				"1000",
 			],
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"isBackground": false,
 			"group": "test",
-			"detail": "Build and run demo to generate output/min_qr.mp4"
+			"detail": "Build and run demo"
 		}
 	]
 }

@@ -1,7 +1,6 @@
 #include <iostream>
 #include "encode.h"
 
-
 int main(int argc, char *argv[])
 {
     // min_qr_video <input_binary_image> <output_video> [duration_ms]
