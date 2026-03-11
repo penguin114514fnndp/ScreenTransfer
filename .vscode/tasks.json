@@ -20,6 +20,19 @@
 			"detail": "Build QR video encoder with g++."
 		},
 		{
+			"label": "Build Video Decoder (OpenCV)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/d",
+				"/s",
+				"/c",
+				"g++ -std=c++17 -O2 -Wall -Wextra -I\"${workspaceFolder}\\Decoder\\include\" -I\"%OPENCV_INCLUDE%\" \"${workspaceFolder}\\Decoder\\src\\main.cpp\" -L\"%OPENCV_LIB%\" %OPENCV_LIBS% -o \"${workspaceFolder}\\output\\qr_video_decoder.exe\""
+			],
+			"group": "build",
+			"detail": "Build QR video decoder with OpenCV (requires OPENCV_INCLUDE, OPENCV_LIB, OPENCV_LIBS)."
+		},
+		{
 			"label": "Run Encoder Demo",
 			"type": "shell",
 			"dependsOn": ["Build Video Encoder (g++)"],
