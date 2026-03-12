@@ -22,7 +22,7 @@
 		{
 			"label": "Run Encoder Demo",
 			"type": "shell",
-			"dependsOn": ["Build Video Encoder (g++)"],
+			"dependsOn": ["Build Video Encoder"],
 			"dependsOrder": "sequence",
 			"command": "${workspaceFolder}\\output\\qr_video_encoder.exe",
 			"args": [

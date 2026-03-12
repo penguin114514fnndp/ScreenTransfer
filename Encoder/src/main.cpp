@@ -21,3 +21,5 @@ int main(int argc, char *argv[])
     encoder.DisplayBandwidthReport();
     return encoder.Encode();
 }
+
+// TODO: zlib压缩
