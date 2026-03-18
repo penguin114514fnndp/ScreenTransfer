@@ -2,7 +2,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Build Video Encoder",
+			"label": "Build Encoder",
 			"type": "shell",
 			"command": "g++",
 			"args": [
@@ -22,7 +22,7 @@
 		{
 			"label": "Run Encoder Demo",
 			"type": "shell",
-			"dependsOn": ["Build Video Encoder"],
+			"dependsOn": ["Build Encoder"],
 			"dependsOrder": "sequence",
 			"command": "${workspaceFolder}\\output\\qr_video_encoder.exe",
 			"args": [
@@ -32,6 +32,20 @@
 			],
 			"group": "test",
 			"detail": "Build and run demo"
+		},
+		{
+			"label": "Build Decoder",
+			"type": "shell",
+			"command": ".\\.vscode\\build-decoder.cmd",
+			"group": { "kind": "build", "isDefault": true },
+			"problemMatcher": "$msCompile"
+		},
+		{
+		"label": "Build & Run Decoder",
+		"type": "shell",
+		"command": ".\\.vscode\\build-decoder.cmd && .\\output\\decoder.exe",
+		"group": { "kind": "test", "isDefault": true },
+		"problemMatcher": "$msCompile"
 		}
 	]
 }

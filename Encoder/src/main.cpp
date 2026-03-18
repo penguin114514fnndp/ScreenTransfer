@@ -1,5 +1,5 @@
 #include <iostream>
-#include "encode.h"
+#include "QrVideoEncoder.h"
 
 int main(int argc, char *argv[])
 {
