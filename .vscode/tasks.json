@@ -4,20 +4,9 @@
 		{
 			"label": "Build Encoder",
 			"type": "shell",
-			"command": "g++",
-			"args": [
-				"-std=c++17",
-				"-O2",
-				"-Wall",
-				"-Wextra",
-				"-I${workspaceFolder}\\Encoder\\include",
-				"${workspaceFolder}\\Encoder\\src",
-				"-lstdc++fs",
-				"-o",
-				"${workspaceFolder}\\output\\qr_video_encoder.exe"
-			],
-			"group": "build",
-			"detail": "Build QR video encoder with g++."
+			"command": ".\\.vscode\\build-encoder.cmd",
+			"group": { "kind": "build", "isDefault": true },
+			"problemMatcher": "$msCompile",
 		},
 		{
 			"label": "Run Encoder Demo",
@@ -28,10 +17,10 @@
 			"args": [
 				"${workspaceFolder}\\output\\test.jpg",
 				"${workspaceFolder}\\output\\qr_video.mp4",
-				"1000",
+				"1000"
 			],
 			"group": "test",
-			"detail": "Build and run demo"
+			"problemMatcher": "$msCompile",
 		},
 		{
 			"label": "Build Decoder",
@@ -41,11 +30,19 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
-		"label": "Build & Run Decoder",
-		"type": "shell",
-		"command": ".\\.vscode\\build-decoder.cmd && .\\output\\decoder.exe",
-		"group": { "kind": "test", "isDefault": true },
-		"problemMatcher": "$msCompile"
+			"label": "Run Decoder",
+			"type": "shell",
+			"dependsOn": ["Build Decoder"],
+			"dependsOrder": "sequence",
+			"command": "${workspaceFolder}\\output\\decoder.exe",
+			"args": [
+				"${workspaceFolder}\\output\\qr_video.mp4",
+				"${workspaceFolder}\\output\\decoded.bin",
+				"${workspaceFolder}\\output\\decoded_v.bin",
+				"${workspaceFolder}\\output\\test.jpg"
+			],
+			"group": { "kind": "test", "isDefault": true },
+			"problemMatcher": "$msCompile",
 		}
 	]
 }

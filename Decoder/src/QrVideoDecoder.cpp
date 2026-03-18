@@ -58,7 +58,7 @@ bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin,
     return true;
 }
 
-// 步骤1：读取数据解析数据，存入帧数组
+// 读取QR code并解析数据
 int QrVideoDecoder::Decode()
 {
     cv::VideoCapture cap(mInputVideo.string());
