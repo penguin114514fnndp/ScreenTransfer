@@ -15,9 +15,9 @@ constexpr std::size_t kFrameHeaderSize = 4;
 // 帧数据结构
 struct FrameData
 {
-    uint32_t frameNumber;           // 帧序号（从帧头读取）
+    int frameNumber;           // 帧序号（从帧头读取）
     std::vector<uint8_t> payload;   // 负载数据
-    FrameData(uint32_t num = 0) : frameNumber(num) {}
+    FrameData(int num = 0) : frameNumber(num) {}
 };
 
 class QrVideoDecoder
@@ -35,18 +35,14 @@ private:
     fs::path mOutputValidity;
     
     std::map<uint32_t, FrameData> mFrames;       // 按序号存储识别到的帧
-    uint32_t mMaxFrameNumber;                    // 最大帧序号
-    std::size_t mTotalDataSize;                  // 总数据量
     std::size_t mValidDataSize;                  // 有效数据量
     std::size_t mLostBits;                       // 丢失比特数
     std::size_t mPayloadSize;                    // 单帧负载长度
-    bool mHasReference;                          // 是否启用源文件对比
     std::vector<uint8_t> mReferenceData;         // 源文件字节流
     
-    // 四步法函数
     bool RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData);
     bool ParseFrameData(const std::vector<uint8_t>& qrData, FrameData& frameData);
-    std::vector<uint8_t> AssembleCompleteData();
+    std::vector<uint8_t> AssembleCompleteData(const int maxFrameNumber);
     std::vector<uint8_t> GenerateValidity(const std::vector<uint8_t>& completeData);
     bool WriteFile(const fs::path& path, const std::vector<uint8_t>& data);
 };

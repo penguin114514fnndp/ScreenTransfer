@@ -7,12 +7,7 @@ bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin,
     mInputVideo = inputVideo;
     mOutputBin = outputBin;
     mOutputValidity = outputValidity;
-    mMaxFrameNumber = 0;
-    mTotalDataSize = 0;
-    mValidDataSize = 0;
-    mLostBits = 0;
     mPayloadSize = 0;
-    mHasReference = false;
     mReferenceData.clear();
     mFrames.clear();
 
@@ -29,12 +24,6 @@ bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin,
     // 读取参考文件
     if (!referenceBin.empty())
     {
-        if (!fs::exists(referenceBin))
-        {
-            std::cerr << "Error: Reference source file not found: " << referenceBin << "\n";
-            return false;
-        }
-
         std::ifstream refFile(referenceBin, std::ios::binary);
         if (!refFile)
         {
@@ -51,10 +40,7 @@ bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin,
             mReferenceData.resize(static_cast<std::size_t>(size));
             refFile.read(reinterpret_cast<char*>(mReferenceData.data()), size);
         }
-
-        mHasReference = true;
     }
-
     return true;
 }
 
@@ -69,12 +55,14 @@ int QrVideoDecoder::Decode()
     }
 
     cv::Mat frame;
+    int maxFrameNumber = 0;
     while (cap.read(frame) && !frame.empty())
     {
         std::vector<uint8_t> qrData;
         FrameData frameData;
         
         // 识别QR码 解析数据
+        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
         if (!RecognizeQrCode(frame, qrData) || !ParseFrameData(qrData, frameData))
             continue;
         // 检查重复
@@ -84,7 +72,7 @@ int QrVideoDecoder::Decode()
         if (mPayloadSize == 0)
             mPayloadSize = frameData.payload.size();
         
-        mMaxFrameNumber = std::max(mMaxFrameNumber, frameData.frameNumber);
+        maxFrameNumber = std::max(maxFrameNumber, frameData.frameNumber);
         mFrames[frameData.frameNumber] = std::move(frameData);
     }
     cap.release();
@@ -94,10 +82,8 @@ int QrVideoDecoder::Decode()
         return 2;
     }
 
-    std::vector<uint8_t> completeData = AssembleCompleteData();          // 生成完整数据
+    std::vector<uint8_t> completeData = AssembleCompleteData(maxFrameNumber); // 生成完整数据
     std::vector<uint8_t> validityData = GenerateValidity(completeData);  // 生成有效性标记
-
-    // 写入文件
     if (!WriteFile(mOutputBin, completeData) || !WriteFile(mOutputValidity, validityData))
     {
         std::cerr << "Error: Failed to write output files.\n";
@@ -109,6 +95,7 @@ int QrVideoDecoder::Decode()
 // QR码识别（保持不变）
 bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData)
 {
+    std::cout << "Recognizing QR code in frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
     decodedData.clear();
     try
     {
@@ -142,8 +129,7 @@ bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>&
         cv::Mat binary;
         cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
         if (tryDecode(binary))
-            return true;
-        
+            return true;        
         return false;
     }
     catch (const std::exception& e)
@@ -156,6 +142,7 @@ bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>&
 // 帧数据解析
 bool QrVideoDecoder::ParseFrameData(const std::vector<uint8_t>& qrData, FrameData& frameData)
 {
+    std::cout << "Parsing frame data " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
     if (qrData.size() < kFrameHeaderSize)
         return false;
 
@@ -166,13 +153,12 @@ bool QrVideoDecoder::ParseFrameData(const std::vector<uint8_t>& qrData, FrameDat
 }
 
 // 合并数据，填充缺失帧
-std::vector<uint8_t> QrVideoDecoder::AssembleCompleteData()
+std::vector<uint8_t> QrVideoDecoder::AssembleCompleteData(const int maxFrameNumber)
 {
     std::vector<uint8_t> completeData;
-    completeData.reserve((mMaxFrameNumber + 1) * mPayloadSize);
+    completeData.reserve((maxFrameNumber + 1) * mPayloadSize);
     
-    // 遍历 0 到 mMaxFrameNumber，补齐缺失帧
-    for (uint32_t i = 0; i <= mMaxFrameNumber; ++i)
+    for (uint32_t i = 0; i <= maxFrameNumber; ++i)
     {
         auto it = mFrames.find(i);
         if (it != mFrames.end())
@@ -180,26 +166,15 @@ std::vector<uint8_t> QrVideoDecoder::AssembleCompleteData()
         else if (mPayloadSize > 0)
             completeData.insert(completeData.end(), mPayloadSize, 0x00);
     }
-
-    mTotalDataSize = completeData.size();
     return completeData;
 }
 
-// 对比数据生成有效性标记
+// 对比数据生成有效性标记 (参考文件)
 std::vector<uint8_t> QrVideoDecoder::GenerateValidity(const std::vector<uint8_t>& completeData)
 {
     std::vector<uint8_t> validityData(completeData.size(), 0xFF);
     mValidDataSize = 0;
     mLostBits = 0;
-
-    if (!mHasReference)
-    {
-        // 无参考文件：所有数据标记为有效
-        mValidDataSize = completeData.size() * 8;
-        return validityData;
-    }
-
-    // 有参考文件：字节对字节比对
     for (std::size_t i = 0; i < completeData.size(); ++i)
     {
         bool match = (i < mReferenceData.size()) && (completeData[i] == mReferenceData[i]);
@@ -220,9 +195,7 @@ bool QrVideoDecoder::WriteFile(const fs::path& path, const std::vector<uint8_t>&
             std::cerr << "Error: Cannot open file: " << path << "\n";
             return false;
         }
-        if (!data.empty())
-            file.write(reinterpret_cast<const char*>(data.data()), 
-                      static_cast<std::streamsize>(data.size()));
+        file.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
         return true;
     }
     catch (const std::exception& e)
@@ -235,12 +208,13 @@ bool QrVideoDecoder::WriteFile(const fs::path& path, const std::vector<uint8_t>&
 // 生成报告
 void QrVideoDecoder::DisplayDecodingReport()
 {
+    int totalDataSize = mValidDataSize + mLostBits;
     std::cout << "Frames: " << mFrames.size() << "\n";
-    std::cout << "Data bytes: " << mTotalDataSize << "\n";
+    std::cout << "Data bytes: " << totalDataSize / 8 << "\n";
 
-    if (mTotalDataSize > 0)
+    if (totalDataSize > 0)
     {
-        const double validityRate = 100.0 * mValidDataSize / (mTotalDataSize * 8);
+        const double validityRate = 100.0 * mValidDataSize / totalDataSize;
         std::cout << "Valid bits: " << std::fixed << std::setprecision(2) << validityRate << "%\n";
     }
 }
