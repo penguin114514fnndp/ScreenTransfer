@@ -1,5 +1,4 @@
 #pragma once
-#include "CustomSymbolCodec.h"
 #include <filesystem>
 #include <vector>
 
@@ -20,14 +19,8 @@ private:
     int mDurationMs;  // 视频持续时间
     fs::path mFfmpegExe;  // ffmpeg.exe路径
     static constexpr int kFixedFps = 20;  // 固定输出帧率
-    CustomSymbolCodec mCodec;  // 自定义符号编码器实例
 
-    // 验证输入参数的有效性
-    bool ValidateInput() const;
-
-    // 读取图片
-    std::vector<unsigned char> ReadAllBytes();
-
-    // 使用ffmpeg合成视频
-    bool BuildVideoFromFrames(const fs::path& framePattern);
+    bool ValidateInput() const;  // 验证输入参数的有效性
+    std::vector<unsigned char> ReadAllBytes();  // 读取图片
+    bool BuildVideoFromFrames(const fs::path& framePattern);  // 使用ffmpeg合成视频
 };

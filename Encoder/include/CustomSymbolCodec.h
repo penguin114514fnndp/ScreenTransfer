@@ -16,8 +16,8 @@ public:
     static constexpr int kModuleScale = 10;             // 每个模块对应的像素数
     static constexpr size_t kFrameByteCapacity = 1710;  // 每帧总字节数（含头部和负载）
 
-    static size_t FrameByteCapacity() { return kFrameByteCapacity; }          // 每帧总字节数（含头部和负载）
-    static size_t PayloadCapacityPerFrame() { return kFrameByteCapacity - kFrameHeaderSize; };    // 每帧可用的负载字节数
+    static size_t FrameByteCapacity() { return kFrameByteCapacity; } // 每帧总字节数（含头部和负载）
+    static size_t PayloadCapacityPerFrame() { return kFrameByteCapacity - kFrameHeaderSize; }; // 每帧可用的负载字节数
     static std::vector<std::vector<uint8_t>> CreateFrames(const std::vector<uint8_t>& data); // 将输入数据切分成多帧
     static void SaveFrameAsPpm(const std::vector<uint8_t>& bytes, const fs::path& filePath); // 将帧数据保存为PPM图像
 
