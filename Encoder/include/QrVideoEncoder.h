@@ -24,13 +24,8 @@ public:
         mFfmpegExe = ffmpegExe;
 
         if (!ValidateInput())  return false;
-
         return true;
     }
-
-private:
-
-public:
 
     int Encode()
     {
@@ -50,8 +45,8 @@ public:
         // 生成二维码图像并保存
         for (size_t i = 0; i < frames.size(); ++i)
         {
-            const QrCode qr = QrCode::encodeBinary(frames[i], QrCode::Ecc::LOW);
-            string path = "output/frames/frame_" + to_string(i) + ".ppm";
+            const QrCode qr = QrCode::encodeBinary(frames[i], QrCode::Ecc::LOW);  // 使用 Ecc::LOW 提高容量
+            string path = "output/frames/frame_" + to_string(i) + ".ppm";    
             SaveQrCodeAsPpm(qr, path);
         }
 
@@ -142,21 +137,16 @@ private:
         return chunks;
     }
 
-    // 储存二维码 - 尝试标准的黑白（0=黑，255=白）
+    // 储存二维码
     void SaveQrCodeAsPpm(const QrCode &qr, const fs::path &filePath, int scale = 20)
     {
         ofstream ofs(filePath, ios::binary);
         const int size = qr.getSize() * scale;
 
         ofs << "P5\n" << size << " " << size << "\n255\n";
-        for (int y = 0; y < size; ++y) {
-            for (int x = 0; x < size; ++x) {
-                // 标准约定：0=黑 255=白
-                // getModule返回的true应该表示"模块"（黑色点）
-                uint8_t pixel = qr.getModule(x / scale, y / scale) ? 0 : 255;
-                ofs.put(pixel);
-            }
-        }
+        for (int y = 0; y < size; ++y)
+            for (int x = 0; x < size; ++x)
+                ofs.put(qr.getModule(x / scale, y / scale) ? 0 : 255);  // 黑色为0，白色为255
     }
 
     // 使用ffmpeg合成视频

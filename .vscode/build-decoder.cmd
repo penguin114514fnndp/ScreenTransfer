@@ -7,8 +7,8 @@ set "WORKSPACE=%ROOT%\Decoder"
 set "INCLUDES=%WORKSPACE%\include"
 set "SRC=%WORKSPACE%\src\*.cpp"
 set "LIB_DIR=%WORKSPACE%\lib"
-set "LIBS=opencv_world420.lib"
-set "OUT_EXE=%ROOT%\output\decoder.exe"
+set "LIBS=opencv_world4120.lib"
+set "OUT_EXE=%ROOT%\output\qr_video_decoder.exe"
 set "OBJ_DIR=%ROOT%\output\.obj_temp"
 :: ===============================================
 

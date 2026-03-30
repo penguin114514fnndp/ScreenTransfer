@@ -34,7 +34,7 @@
 			"type": "shell",
 			"dependsOn": ["Build Decoder"],
 			"dependsOrder": "sequence",
-			"command": "${workspaceFolder}\\output\\decoder.exe",
+			"command": "${workspaceFolder}\\output\\qr_video_decoder.exe",
 			"args": [
 				"${workspaceFolder}\\output\\qr_video.mp4",
 				"${workspaceFolder}\\output\\decoded.bin",

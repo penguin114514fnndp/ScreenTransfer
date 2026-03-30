@@ -62,10 +62,12 @@ int QrVideoDecoder::Decode()
     {
         std::vector<uint8_t> qrData;
         FrameData frameData;
-
+        
+        // 识别QR码 解析数据
+        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << std::endl;
         if (!RecognizeQrCode(frame, qrData, 0) || !ParseFrameData(qrData, frameData))
             continue;
-
+        // 检查重复
         if (mFrames.find(frameData.frameNumber) != mFrames.end())
             continue;
 
@@ -83,14 +85,13 @@ int QrVideoDecoder::Decode()
         return 2;
     }
 
-    std::vector<uint8_t> completeData = AssembleCompleteData(maxFrameNumber);
-    std::vector<uint8_t> validityData = GenerateValidity(completeData);
+    std::vector<uint8_t> completeData = AssembleCompleteData(maxFrameNumber); // 生成完整数据
+    std::vector<uint8_t> validityData = GenerateValidity(completeData);  // 生成有效性标记
     if (!WriteFile(mOutputBin, completeData) || !WriteFile(mOutputValidity, validityData))
     {
         std::cerr << "Error: Failed to write output files.\n";
         return 3;
     }
-
     return 0;
 }
 
@@ -109,19 +110,15 @@ bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_
 
         // 使用PNG格式（更兼容）
         if (!cv::imwrite(framePath.string(), frame))
-        {
             return false;
-        }
-
+        
         // 调用Python脚本: python decode_qr_pyzbar.py <frame_path>
         std::string command = "python decode_qr_pyzbar.py \"" + framePath.string() + "\" 2>nul";
 
         // 执行命令并捕获输出
         FILE* pipe = _popen(command.c_str(), "r");
         if (!pipe)
-        {
             return false;
-        }
 
         std::string output;
         char buffer[256];
@@ -132,11 +129,9 @@ bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_
         _pclose(pipe);
 
         // 清理临时文件
-        try {
-            fs::remove(framePath);
-        } catch (...) {}
+        try { fs::remove(framePath); } catch (...) {}
 
-        // 解析JSON输出 - 简简单方法：查找"data"字段
+        // 解析JSON输出 查找 data 字段
         size_t dataPos = output.find("\"data\":");
         if (dataPos == std::string::npos)
             return false;
@@ -169,9 +164,7 @@ bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_
         }
 
         if (!decodedData.empty())
-        {
             return true;
-        }
 
         return false;
     }
@@ -183,11 +176,9 @@ bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_
 
 bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex)
 {
-    // 尝试使用pyzbar (已验证有效)
+    // 尝试使用pyzbar
     if (DetectQrWithPyzbar(frame, decodedData, frameIndex))
-    {
         return true;
-    }
 
     // 备选: 灰度 + Otsu 阈值
     cv::Mat gray = frame.clone();

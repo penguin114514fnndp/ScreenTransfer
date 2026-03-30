@@ -4,7 +4,8 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc != 4 && argc != 5)
+     // decode <input_video> <output_bin> <output_validity> [reference_bin]
+   if (argc != 4 && argc != 5)
     {
         std::cout << "Usage: decoder <input_video> <output_bin> <output_validity> [reference_bin]\n"
                   << "Example: decoder recorded.mp4 out.bin vout.bin\n";

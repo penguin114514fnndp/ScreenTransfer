@@ -1,5 +1,2 @@
-tools/ffplay.exe
-tools/ffprobe.exe
 output/*
-Decoder/include/opencv2
 .vscode/c_cpp_properties.json
