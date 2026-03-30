@@ -1,5 +1,4 @@
 #include "QrVideoDecoder.h"
-#include <iomanip>
 #include <cstdio>
 
 // 初始化
@@ -57,25 +56,31 @@ int QrVideoDecoder::Decode()
 
     cv::Mat frame;
     int maxFrameNumber = 0;
+    int processedFrames = 0;
 
     while (cap.read(frame) && !frame.empty())
     {
         std::vector<uint8_t> qrData;
         FrameData frameData;
-        
-        // 识别QR码 解析数据
-        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << std::endl;
-        if (!RecognizeQrCode(frame, qrData, 0) || !ParseFrameData(qrData, frameData))
+
+        if (!RecognizeQrCode(frame, qrData, processedFrames) || !ParseFrameData(qrData, frameData))
+        {
+            processedFrames++;
             continue;
-        // 检查重复
+        }
+
         if (mFrames.find(frameData.frameNumber) != mFrames.end())
+        {
+            processedFrames++;
             continue;
+        }
 
         if (mPayloadSize == 0)
             mPayloadSize = frameData.payload.size();
 
         maxFrameNumber = std::max(maxFrameNumber, frameData.frameNumber);
         mFrames[frameData.frameNumber] = std::move(frameData);
+        processedFrames++;
     }
     cap.release();
 
@@ -95,63 +100,64 @@ int QrVideoDecoder::Decode()
     return 0;
 }
 
-// QR码识别 - 多策略检测
-// 使用pyzbar库识别QR码（首选方法）
+// QR码识别 - 使用pyzbar库
 bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex)
 {
     try
     {
-        // 保存帧为临时PPM文件
+        // 创建临时目录
         fs::path tempDir = "output/temp_qr";
         if (!fs::exists(tempDir))
             fs::create_directories(tempDir);
 
         fs::path framePath = tempDir / ("frame_" + std::to_string(frameIndex) + ".png");
 
-        // 使用PNG格式（更兼容）
+        // 保存帧为PNG格式
         if (!cv::imwrite(framePath.string(), frame))
             return false;
-        
-        // 调用Python脚本: python decode_qr_pyzbar.py <frame_path>
-        std::string command = "python decode_qr_pyzbar.py \"" + framePath.string() + "\" 2>nul";
 
-        // 执行命令并捕获输出
+        fs::path scriptPath = "tools/decode_qr.py";
+
+        // 调用Python脚本: python tools/decode_qr.py <frame_path>
+        std::string command = "python \"" + scriptPath.string() + "\" \"" + framePath.string() + "\"";
+
+        // 执行命令
         FILE* pipe = _popen(command.c_str(), "r");
         if (!pipe)
             return false;
 
         std::string output;
-        char buffer[256];
+        char buffer[512];
         while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
         {
             output += buffer;
         }
-        _pclose(pipe);
+        int exitCode = _pclose(pipe);
 
         // 清理临时文件
         try { fs::remove(framePath); } catch (...) {}
 
-        // 解析JSON输出 查找 data 字段
+        if (exitCode != 0)
+            return false;
+
+        // 解析JSON: 查找 "data" 字段
         size_t dataPos = output.find("\"data\":");
         if (dataPos == std::string::npos)
             return false;
 
-        size_t colonPos = output.find(":", dataPos);
-        size_t quoteStart = output.find("\"", colonPos);
-        if (quoteStart == std::string::npos)
-            return false;
-
+        size_t valueStart = output.find(":", dataPos) + 1;
+        size_t quoteStart = output.find("\"", valueStart);
         size_t quoteEnd = output.find("\"", quoteStart + 1);
-        if (quoteEnd == std::string::npos)
+
+        if (quoteStart == std::string::npos || quoteEnd == std::string::npos)
             return false;
 
         std::string hexData = output.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
 
-        // 处理null值
         if (hexData == "null" || hexData.empty())
             return false;
 
-        // 将十六进制字符串转换回二进制数据
+        // 十六进制转二进制
         decodedData.clear();
         for (size_t i = 0; i < hexData.length(); i += 2)
         {
@@ -163,12 +169,9 @@ bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_
             }
         }
 
-        if (!decodedData.empty())
-            return true;
-
-        return false;
+        return !decodedData.empty();
     }
-    catch (const std::exception& e)
+    catch (const std::exception&)
     {
         return false;
     }
@@ -279,4 +282,3 @@ void QrVideoDecoder::DisplayDecodingReport()
         std::cout << "Valid bits: " << std::fixed << std::setprecision(2) << validityRate << "%\n";
     }
 }
-
