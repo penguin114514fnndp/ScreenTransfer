@@ -15,7 +15,7 @@
 			"dependsOrder": "sequence",
 			"command": "${workspaceFolder}\\output\\qr_video_encoder.exe",
 			"args": [
-				"${workspaceFolder}\\output\\test.jpg",
+				"${workspaceFolder}\\output\\test.png",
 				"${workspaceFolder}\\output\\qr_video.mp4",
 				"1000"
 			],
@@ -38,7 +38,7 @@
 			"args": [
 				"${workspaceFolder}\\output\\qr_video.mp4",
 				"${workspaceFolder}\\output\\decoded.bin",
-				"${workspaceFolder}\\output\\test.jpg"
+				"${workspaceFolder}\\output\\test.png"
 			],
 			"group": { "kind": "test", "isDefault": true },
 			"problemMatcher": "$msCompile",

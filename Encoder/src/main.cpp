@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include "QrVideoEncoder.h"
 
 int main(int argc, char *argv[])
@@ -13,7 +14,7 @@ int main(int argc, char *argv[])
 
     std::string inputFile = argv[1];
     std::string outputVideo = argv[2];
-    int durationMs = stoi(argv[3]);
+    int durationMs = std::stoi(argv[3]);
 
     QrVideoEncoder encoder;
     if (!encoder.Init(inputFile, outputVideo, durationMs))
@@ -21,5 +22,3 @@ int main(int argc, char *argv[])
     encoder.DisplayBandwidthReport();
     return encoder.Encode();
 }
-
-// TODO: zlib压缩
