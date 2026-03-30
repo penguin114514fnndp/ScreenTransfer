@@ -44,6 +44,7 @@ private:
     int mDetectedFrames;                         // 成功识别的帧数
 
     bool RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex);
+    bool DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex);
     bool ParseFrameData(const std::vector<uint8_t>& qrData, FrameData& frameData);
     std::vector<uint8_t> AssembleCompleteData(const int maxFrameNumber);
     std::vector<uint8_t> GenerateValidity(const std::vector<uint8_t>& completeData);

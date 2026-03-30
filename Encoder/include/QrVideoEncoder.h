@@ -191,7 +191,7 @@ private:
         return chunks;
     }
 
-    // 储存二维码
+    // 储存二维码 - 尝试标准的黑白（0=黑，255=白）
     void SaveQrCodeAsPpm(const QrCode &qr, const fs::path &filePath, int scale = 20)
     {
         ofstream ofs(filePath, ios::binary);
@@ -200,8 +200,10 @@ private:
         ofs << "P5\n" << size << " " << size << "\n255\n";
         for (int y = 0; y < size; ++y) {
             for (int x = 0; x < size; ++x) {
-                // 尝试反转：如果这是错的，则module()返回true时应该是白色
-                ofs.put(qr.getModule(x / scale, y / scale) ? 255 : 0);  // 反转试试
+                // 标准约定：0=黑 255=白
+                // getModule返回的true应该表示"模块"（黑色点）
+                uint8_t pixel = qr.getModule(x / scale, y / scale) ? 0 : 255;
+                ofs.put(pixel);
             }
         }
     }

@@ -1,5 +1,6 @@
 #include "QrVideoDecoder.h"
 #include <iomanip>
+#include <cstdio>
 
 // 初始化
 bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin, const fs::path& outputValidity, const fs::path& referenceBin)
@@ -131,8 +132,101 @@ int QrVideoDecoder::Decode()
 }
 
 // QR码识别 - 多策略检测
+// 使用pyzbar库识别QR码（首选方法）
+bool QrVideoDecoder::DetectQrWithPyzbar(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex)
+{
+    try
+    {
+        // 保存帧为临时PPM文件
+        fs::path tempDir = "output/temp_qr";
+        if (!fs::exists(tempDir))
+            fs::create_directories(tempDir);
+
+        fs::path framePath = tempDir / ("frame_" + std::to_string(frameIndex) + ".png");
+
+        // 使用PNG格式（更兼容）
+        if (!cv::imwrite(framePath.string(), frame))
+        {
+            return false;
+        }
+
+        // 调用Python脚本: python decode_qr_pyzbar.py <frame_path>
+        std::string command = "python decode_qr_pyzbar.py \"" + framePath.string() + "\" 2>nul";
+
+        // 执行命令并捕获输出
+        FILE* pipe = _popen(command.c_str(), "r");
+        if (!pipe)
+        {
+            return false;
+        }
+
+        std::string output;
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+        {
+            output += buffer;
+        }
+        _pclose(pipe);
+
+        // 清理临时文件
+        try {
+            fs::remove(framePath);
+        } catch (...) {}
+
+        // 解析JSON输出 - 简简单方法：查找"data"字段
+        size_t dataPos = output.find("\"data\":");
+        if (dataPos == std::string::npos)
+            return false;
+
+        size_t colonPos = output.find(":", dataPos);
+        size_t quoteStart = output.find("\"", colonPos);
+        if (quoteStart == std::string::npos)
+            return false;
+
+        size_t quoteEnd = output.find("\"", quoteStart + 1);
+        if (quoteEnd == std::string::npos)
+            return false;
+
+        std::string hexData = output.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+
+        // 处理null值
+        if (hexData == "null" || hexData.empty())
+            return false;
+
+        // 将十六进制字符串转换回二进制数据
+        decodedData.clear();
+        for (size_t i = 0; i < hexData.length(); i += 2)
+        {
+            if (i + 1 < hexData.length())
+            {
+                std::string byteStr = hexData.substr(i, 2);
+                uint8_t byte = static_cast<uint8_t>(strtol(byteStr.c_str(), nullptr, 16));
+                decodedData.push_back(byte);
+            }
+        }
+
+        if (!decodedData.empty())
+        {
+            LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Pyzbar detection - SUCCESS");
+            return true;
+        }
+
+        return false;
+    }
+    catch (const std::exception& e)
+    {
+        return false;
+    }
+}
+
 bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex)
 {
+    // **首先尝试使用pyzbar (已验证有效)**
+    if (DetectQrWithPyzbar(frame, decodedData, frameIndex))
+    {
+        return true;
+    }
+
     const int kMaxDecodeSide = 3000;  // 增加最大解码尺寸以保留QR细节
 
     // 调试：保存原始帧

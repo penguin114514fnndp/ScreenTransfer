@@ -1,11 +1,37 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <cstdio>
 #include "QrVideoDecoder.h"
 
 int testPPMDetection(const std::string& ppmFile)
 {
     std::cout << "=== Direct PPM QR Detection Test ===" << std::endl;
     std::cout << "Testing: " << ppmFile << std::endl;
+
+    // 首先尝试pyzbar (已验证有效!)
+    std::cout << "\n1. Testing with pyzbar:" << std::endl;
+    std::string command = "python decode_qr_pyzbar.py \"" + ppmFile + "\" 2>nul";
+    FILE* pipe = _popen(command.c_str(), "r");
+    if (pipe)
+    {
+        std::string output;
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+        {
+            output += buffer;
+        }
+        _pclose(pipe);
+
+        if (output.find("\"success\": true") != std::string::npos)
+        {
+            std::cout << "   [SUCCESS] Pyzbar detected QR code!" << std::endl;
+            return 0;
+        }
+    }
+    std::cout << "   [FAILED] Pyzbar unavailable" << std::endl;
+
+    // 如果pyzbar失败，尝试OpenCV (备选方案)
+    std::cout << "\n2. Testing with OpenCV (fallback):" << std::endl;
 
     // 强制读取为灰度！这是关键修复
     cv::Mat img = cv::imread(ppmFile, cv::IMREAD_GRAYSCALE);
