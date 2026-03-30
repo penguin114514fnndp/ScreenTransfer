@@ -62,7 +62,7 @@ int QrVideoDecoder::Decode()
         FrameData frameData;
         
         // 识别QR码 解析数据
-        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
+        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << std::endl;
         if (!RecognizeQrCode(frame, qrData) || !ParseFrameData(qrData, frameData))
             continue;
         // 检查重复
@@ -87,62 +87,43 @@ int QrVideoDecoder::Decode()
     if (!WriteFile(mOutputBin, completeData) || !WriteFile(mOutputValidity, validityData))
     {
         std::cerr << "Error: Failed to write output files.\n";
-        return 4;
+        return 3;
     }
     return 0;
 }
 
-// QR码识别（保持不变）
+// QR码识别
 bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData)
 {
-    std::cout << "Recognizing QR code in frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
-    decodedData.clear();
-    try
-    {
-        cv::QRCodeDetector detector;
-
-        auto tryDecode = [&](const cv::Mat& img) -> bool
-        {
-            std::string data = detector.detectAndDecode(img);
-            if (data.empty())
-                return false;
-            
-            decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
-                               reinterpret_cast<const uint8_t*>(data.data()) + data.size());
-            return true;
-        };
-
-        // 1) 原图
-        if (tryDecode(frame))
-            return true;
+    std::cout << "Recognizing QR code in frame " << std::endl;
+    const int kMaxDecodeSide = 1200;  // 最大缩放尺寸
         
-        // 2) 灰度图
-        cv::Mat gray;
-        if (frame.channels() == 3)
-            cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-        else
-            gray = frame.clone();
-        if (tryDecode(gray))
-            return true;
-
-        // 3) OTSU 二值图
-        cv::Mat binary;
-        cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-        if (tryDecode(binary))
-            return true;        
-        return false;
-    }
-    catch (const std::exception& e)
+    // 如果帧过大，缩放
+    cv::Mat toProcess = frame;
+    int maxSide = std::max(frame.rows, frame.cols);
+    if (maxSide > kMaxDecodeSide)
     {
-        std::cerr << "Error in QR recognition: " << e.what() << "\n";
-        return false;
+        double scale = static_cast<double>(kMaxDecodeSide) / maxSide;
+        cv::resize(frame, toProcess, cv::Size(), scale, scale, cv::INTER_AREA);
     }
+    cv::cvtColor(toProcess, toProcess, cv::COLOR_BGR2GRAY);
+    cv::threshold(toProcess, toProcess, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    
+    std::cout << "Detecting and decoding QR code..." << std::endl;
+    // 识别QR码
+    cv::QRCodeDetector detector;
+    std::string data = detector.detectAndDecode(toProcess);
+    if (data.empty())   
+        return false;       
+
+    decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()), reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+    return true;
 }
 
 // 帧数据解析
 bool QrVideoDecoder::ParseFrameData(const std::vector<uint8_t>& qrData, FrameData& frameData)
 {
-    std::cout << "Parsing frame data " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << "\r" << std::flush;
+    std::cout << "Parsing frame data " << std::endl;
     if (qrData.size() < kFrameHeaderSize)
         return false;
 
