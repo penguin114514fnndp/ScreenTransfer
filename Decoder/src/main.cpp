@@ -12,7 +12,6 @@ int main(int argc, char *argv[])
 
     std::cout << "\n=== QR VIDEO DECODER ===\n";
 
-    // 解码video
     QrVideoDecoder decoder;
     if (!decoder.Init(argv[1], argv[2]))
         return 1;
