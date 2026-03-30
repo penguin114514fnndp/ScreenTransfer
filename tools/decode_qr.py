@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Optimized QR Code decoder using pyzbar
-Simple, fast, with image preprocessing for better detection
+With image preprocessing for robust detection
 """
 import sys
 import json
@@ -11,7 +11,7 @@ try:
     from pyzbar.pyzbar import decode
     from PIL import Image, ImageEnhance, ImageOps
 except ImportError as e:
-    print(json.dumps({"success": False, "data": None, "error": str(e)}))
+    print(json.dumps({"success": False, "data": None}))
     sys.exit(1)
 
 
@@ -43,21 +43,22 @@ def detect_qr(image_path):
 
         img = Image.open(image_path)
 
-        # Try raw detection first
+        # 第一步：快速尝试原样检测
         results = decode(img)
 
+        # 第二步：如果失败，使用预处理
         if not results:
-            # Try with preprocessing
             img_enhanced = enhance_for_detection(img)
             results = decode(img_enhanced)
 
+        # 成功：返回第一个QR码的数据
         if results:
-            # Return hex data of first QR code found
             return {
                 "success": True,
                 "data": results[0].data.hex()
             }
 
+        # 失败：没有找到任何QR码
         return {"success": False, "data": None}
 
     except Exception as e:

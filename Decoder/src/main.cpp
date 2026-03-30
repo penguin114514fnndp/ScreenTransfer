@@ -1,27 +1,30 @@
 #include <iostream>
-#include <opencv2/opencv.hpp>
 #include "QrVideoDecoder.h"
+#include "DataVerifier.h"
 
 int main(int argc, char *argv[])
 {
-     // decode <input_video> <output_bin> <output_validity> [reference_bin]
-   if (argc != 4 && argc != 5)
+    if (argc < 3 || argc > 4)
     {
-        std::cout << "Usage: decoder <input_video> <output_bin> <output_validity> [reference_bin]\n"
-                  << "Example: decoder recorded.mp4 out.bin vout.bin\n";
+        std::cout << "Usage: decoder <input.mp4> <output.bin> [reference.bin]\n";
         return 1;
     }
 
-    std::string inputVideo = argv[1];
-    std::string outputBin = argv[2];
-    std::string outputValidity = argv[3];
-    std::string referenceBin = (argc == 5) ? argv[4] : "";
+    std::cout << "\n=== QR VIDEO DECODER ===\n";
 
+    // 解码video
     QrVideoDecoder decoder;
-    if (!decoder.Init(inputVideo, outputBin, outputValidity, referenceBin))
+    if (!decoder.Init(argv[1], argv[2]))
         return 1;
 
-    const int decodeStatus = decoder.Decode();
-    decoder.DisplayDecodingReport();
-    return decodeStatus;
+    int status = decoder.Decode();
+    if (status != 0)
+        return status;
+
+    // 如果提供了参考文件，进行比对
+    if (argc == 4)
+    {
+        DataVerifier verifier;
+        verifier.Compare(argv[2], argv[3]);
+    }
 }

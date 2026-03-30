@@ -38,7 +38,6 @@
 			"args": [
 				"${workspaceFolder}\\output\\qr_video.mp4",
 				"${workspaceFolder}\\output\\decoded.bin",
-				"${workspaceFolder}\\output\\decoded_v.bin",
 				"${workspaceFolder}\\output\\test.jpg"
 			],
 			"group": { "kind": "test", "isDefault": true },
