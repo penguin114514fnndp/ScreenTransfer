@@ -10,16 +10,33 @@ bool QrVideoDecoder::Init(const fs::path& inputVideo, const fs::path& outputBin,
     mPayloadSize = 0;
     mReferenceData.clear();
     mFrames.clear();
+    mTotalFrames = 0;
+    mDetectedFrames = 0;
 
     if (!fs::exists(inputVideo))
     {
         std::cerr << "Error: Input video file not found: " << inputVideo << "\n";
         return false;
     }
-    
+
     const auto outputDir = outputBin.parent_path();
     if (!outputDir.empty() && !fs::exists(outputDir))
         fs::create_directories(outputDir);
+
+    // 打开诊断日志文件
+    fs::path diagDir = outputDir;
+    if (diagDir.empty()) diagDir = ".";
+    fs::path diagFile = diagDir / "qr_decoder_diagnostics.log";
+    mDiagnosticFile.open(diagFile, std::ios::out | std::ios::trunc);
+    if (!mDiagnosticFile)
+    {
+        std::cerr << "Warning: Cannot create diagnostic log file: " << diagFile << "\n";
+    }
+    else
+    {
+        LogDiagnostic("=== QR Video Decoder Diagnostics ===");
+        LogDiagnostic("Input video: " + inputVideo.string());
+    }
 
     // 读取参考文件
     if (!referenceBin.empty())
@@ -56,29 +73,44 @@ int QrVideoDecoder::Decode()
 
     cv::Mat frame;
     int maxFrameNumber = 0;
+    mTotalFrames = 0;
+    mDetectedFrames = 0;
+
     while (cap.read(frame) && !frame.empty())
     {
+        mTotalFrames++;
         std::vector<uint8_t> qrData;
         FrameData frameData;
-        
+
         // 识别QR码 解析数据
-        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << (mFrames.size() + 1) << std::endl;
-        if (!RecognizeQrCode(frame, qrData) || !ParseFrameData(qrData, frameData))
+        std::cout << "Processing frame " << std::setw(5) << std::setfill('0') << mTotalFrames << std::endl;
+        if (!RecognizeQrCode(frame, qrData, mTotalFrames) || !ParseFrameData(qrData, frameData))
             continue;
         // 检查重复
         if (mFrames.find(frameData.frameNumber) != mFrames.end())
             continue;
 
+        mDetectedFrames++;
         if (mPayloadSize == 0)
             mPayloadSize = frameData.payload.size();
-        
+
         maxFrameNumber = std::max(maxFrameNumber, frameData.frameNumber);
         mFrames[frameData.frameNumber] = std::move(frameData);
     }
     cap.release();
+
+    LogDiagnostic("Total frames processed: " + std::to_string(mTotalFrames));
+    LogDiagnostic("Frames successfully detected: " + std::to_string(mDetectedFrames));
+    if (mTotalFrames > 0)
+    {
+        double detectionRate = 100.0 * mDetectedFrames / mTotalFrames;
+        LogDiagnostic("Detection rate: " + std::to_string(detectionRate) + "%");
+    }
+
     if (mFrames.empty())
     {
         std::cerr << "Error: No valid QR frame recognized in video.\n";
+        LogDiagnostic("ERROR: No valid QR frames detected!");
         return 2;
     }
 
@@ -87,17 +119,32 @@ int QrVideoDecoder::Decode()
     if (!WriteFile(mOutputBin, completeData) || !WriteFile(mOutputValidity, validityData))
     {
         std::cerr << "Error: Failed to write output files.\n";
+        LogDiagnostic("ERROR: Failed to write output files!");
         return 3;
     }
+
+    LogDiagnostic("Decoding completed successfully");
+    if (mDiagnosticFile.is_open())
+        mDiagnosticFile.close();
+
     return 0;
 }
 
-// QR码识别
-bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData)
+// QR码识别 - 多策略检测
+bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex)
 {
-    std::cout << "Recognizing QR code in frame " << std::endl;
-    const int kMaxDecodeSide = 1200;  // 最大缩放尺寸
-        
+    const int kMaxDecodeSide = 3000;  // 增加最大解码尺寸以保留QR细节
+
+    // 调试：保存原始帧
+    static bool first_frame = true;
+    if (first_frame)
+    {
+        first_frame = false;
+        cv::imwrite("output/debug_frame_raw.png", frame);
+        LogDiagnostic("Saved debug frame. Dimensions: " + std::to_string(frame.rows) + "x" + std::to_string(frame.cols) +
+                      ", Channels: " + std::to_string(frame.channels()));
+    }
+
     // 如果帧过大，缩放
     cv::Mat toProcess = frame;
     int maxSide = std::max(frame.rows, frame.cols);
@@ -106,18 +153,163 @@ bool QrVideoDecoder::RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>&
         double scale = static_cast<double>(kMaxDecodeSide) / maxSide;
         cv::resize(frame, toProcess, cv::Size(), scale, scale, cv::INTER_AREA);
     }
-    cv::cvtColor(toProcess, toProcess, cv::COLOR_BGR2GRAY);
-    cv::threshold(toProcess, toProcess, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-    
-    std::cout << "Detecting and decoding QR code..." << std::endl;
-    // 识别QR码
-    cv::QRCodeDetector detector;
-    std::string data = detector.detectAndDecode(toProcess);
-    if (data.empty())   
-        return false;       
 
-    decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()), reinterpret_cast<const uint8_t*>(data.data()) + data.size());
-    return true;
+    cv::QRCodeDetector detector;
+    std::string data;
+
+    // 策略1: 原始图像（彩色或灰度）
+    data = detector.detectAndDecode(toProcess);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 1 (Raw frame) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略2: 灰度 + Otsu 阈值
+    cv::Mat gray = toProcess.clone();
+    if (gray.channels() == 3 || gray.channels() == 4)
+        cv::cvtColor(gray, gray, cv::COLOR_BGR2GRAY);
+
+    cv::Mat binary = gray.clone();
+    cv::threshold(binary, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    data = detector.detectAndDecode(binary);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 2 (Grayscale + Otsu) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略3: 灰度 + 自适应阈值 (Adaptive threshold)
+    cv::Mat adaptive = gray.clone();
+    cv::adaptiveThreshold(gray, adaptive, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+                         cv::THRESH_BINARY, 11, 2);
+
+    data = detector.detectAndDecode(adaptive);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 3 (Adaptive threshold) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略4: 双边滤波 + Otsu 阈值 (降噪)
+    cv::Mat denoised = gray.clone();
+    cv::bilateralFilter(gray, denoised, 9, 75, 75);
+    cv::Mat denoised_binary = denoised.clone();
+    cv::threshold(denoised, denoised_binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    data = detector.detectAndDecode(denoised_binary);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 4 (Bilateral + Otsu) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略5: 形态学操作 + Otsu 阈值 (填充孔洞)
+    cv::Mat morphed = binary.clone();
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::morphologyEx(binary, morphed, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), 1);
+
+    data = detector.detectAndDecode(morphed);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 5 (Morphological close) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略6: 对比度增强 (CLAHE) + Otsu
+    cv::Mat clahe_result = gray.clone();
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    clahe->apply(gray, clahe_result);
+    cv::Mat clahe_binary = clahe_result.clone();
+    cv::threshold(clahe_result, clahe_binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    data = detector.detectAndDecode(clahe_binary);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 6 (CLAHE + Otsu) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略7: 上采样 + Otsu (最后一招)
+    if (toProcess.rows < 400 || toProcess.cols < 400)
+    {
+        cv::Mat upscaled;
+        cv::resize(toProcess, upscaled, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+        cv::Mat gray_up = upscaled.clone();
+        if (gray_up.channels() == 3 || gray_up.channels() == 4)
+            cv::cvtColor(gray_up, gray_up, cv::COLOR_BGR2GRAY);
+
+        cv::Mat binary_up = gray_up.clone();
+        cv::threshold(gray_up, binary_up, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+        data = detector.detectAndDecode(binary_up);
+        if (!data.empty())
+        {
+            LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 7 (Upscaled + Otsu) - SUCCESS");
+            decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                              reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+            return true;
+        }
+    }
+
+    // 策略8: 直方图均衡化 + Otsu
+    cv::Mat eq_gray = gray.clone();
+    cv::equalizeHist(eq_gray, eq_gray);
+    cv::Mat eq_binary = eq_gray.clone();
+    cv::threshold(eq_gray, eq_binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    data = detector.detectAndDecode(eq_binary);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 8 (Histogram equalization) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略9: 反阈值 + Otsu
+    cv::Mat inverted = gray.clone();
+    cv::threshold(inverted, inverted, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+
+    data = detector.detectAndDecode(inverted);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 9 (Inverted + Otsu) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    // 策略10: Canny边界检测 + 膨胀
+    cv::Mat canny_img = gray.clone();
+    cv::Canny(gray, canny_img, 50, 150);
+    cv::Mat kernel_canny = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::dilate(canny_img, canny_img, kernel_canny, cv::Point(-1, -1), 2);
+
+    data = detector.detectAndDecode(canny_img);
+    if (!data.empty())
+    {
+        LogDiagnostic("Frame " + std::to_string(frameIndex) + ": Strategy 10 (Canny + dilate) - SUCCESS");
+        decodedData.assign(reinterpret_cast<const uint8_t*>(data.data()),
+                          reinterpret_cast<const uint8_t*>(data.data()) + data.size());
+        return true;
+    }
+
+    LogDiagnostic("Frame " + std::to_string(frameIndex) + ": All 10 strategies FAILED");
+    return false;
 }
 
 // 帧数据解析
@@ -197,5 +389,15 @@ void QrVideoDecoder::DisplayDecodingReport()
     {
         const double validityRate = 100.0 * mValidDataSize / totalDataSize;
         std::cout << "Valid bits: " << std::fixed << std::setprecision(2) << validityRate << "%\n";
+    }
+}
+
+// 诊断日志记录
+void QrVideoDecoder::LogDiagnostic(const std::string& message)
+{
+    if (mDiagnosticFile.is_open())
+    {
+        mDiagnosticFile << message << "\n";
+        mDiagnosticFile.flush();
     }
 }

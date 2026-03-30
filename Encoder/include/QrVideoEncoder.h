@@ -138,7 +138,7 @@ private:
     }
 
     // 储存二维码
-    void SaveQrCodeAsPpm(const QrCode &qr, const fs::path &filePath, int scale = 10)
+    void SaveQrCodeAsPpm(const QrCode &qr, const fs::path &filePath, int scale = 20)
     {
         ofstream ofs(filePath, ios::binary);
         const int size = qr.getSize() * scale;
@@ -160,8 +160,7 @@ private:
               << " -y"  // 覆盖输出文件
               << " -framerate " << mFps
               << " -i \"" << framePattern.string() << "\""
-              << " -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2:color=white\""
-              << " -c:v libx264 -preset ultrafast -crf 0 -tune stillimage -pix_fmt yuv420p" // 视频编码参数
+              << " -c:v libx264 -preset slow -crf 0 -pix_fmt rgb24"  // 使用RGB保留所有细节
               << " \"" << outputPath.string() << "\"";
 
         ostringstream cmd;

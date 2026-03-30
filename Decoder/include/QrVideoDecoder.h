@@ -33,16 +33,20 @@ private:
     fs::path mInputVideo;
     fs::path mOutputBin;
     fs::path mOutputValidity;
-    
+
     std::map<uint32_t, FrameData> mFrames;       // 按序号存储识别到的帧
     std::size_t mValidDataSize;                  // 有效数据量
     std::size_t mLostBits;                       // 丢失比特数
     std::size_t mPayloadSize;                    // 单帧负载长度
     std::vector<uint8_t> mReferenceData;         // 源文件字节流
-    
-    bool RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData);
+    std::ofstream mDiagnosticFile;               // 诊断日志文件
+    int mTotalFrames;                            // 处理过的总帧数
+    int mDetectedFrames;                         // 成功识别的帧数
+
+    bool RecognizeQrCode(const cv::Mat& frame, std::vector<uint8_t>& decodedData, int frameIndex);
     bool ParseFrameData(const std::vector<uint8_t>& qrData, FrameData& frameData);
     std::vector<uint8_t> AssembleCompleteData(const int maxFrameNumber);
     std::vector<uint8_t> GenerateValidity(const std::vector<uint8_t>& completeData);
     bool WriteFile(const fs::path& path, const std::vector<uint8_t>& data);
+    void LogDiagnostic(const std::string& message);
 };
