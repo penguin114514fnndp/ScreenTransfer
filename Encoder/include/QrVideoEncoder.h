@@ -25,48 +25,10 @@ public:
 
         if (!ValidateInput())  return false;
 
-        // 生成测试QR码（纯数据，无frame header）
-        cout << "\n=== Generating Test QR Codes ===" << endl;
-        TestGenerateQRCodes();
-
         return true;
     }
 
 private:
-    void TestGenerateQRCodes()
-    {
-        fs::create_directories("output/test_qr");
-
-        // Test 1: "hello" (5 bytes)
-        cout << "\n1. Test: 'hello'" << endl;
-        vector<uint8_t> hello = {'h', 'e', 'l', 'l', 'o'};
-        try {
-            QrCode qr1 = QrCode::encodeBinary(hello, QrCode::Ecc::LOW);
-            cout << "   Version: " << qr1.getVersion() << ", Size: " << qr1.getSize() << "x" << qr1.getSize() << endl;
-            SaveQrCodeAsPpm(qr1, "output/test_qr/hello.ppm", 10);
-        } catch (...) {}
-
-        // Test 2: 全1字节
-        cout << "2. Test: 256 bytes of 0x01" << endl;
-        vector<uint8_t> ones(256, 0x01);
-        try {
-            QrCode qr2 = QrCode::encodeBinary(ones, QrCode::Ecc::LOW);
-            cout << "   Version: " << qr2.getVersion() << ", Size: " << qr2.getSize() << "x" << qr2.getSize() << endl;
-            SaveQrCodeAsPpm(qr2, "output/test_qr/ones256.ppm", 15);
-        } catch (...) {}
-
-        // Test 3: 原始test_input.bin (纯数据，无frame)
-        cout << "3. Test: test_input.bin (raw, no frame header)" << endl;
-        ifstream ifs(mInputFile, ios::binary);
-        if (ifs) {
-            vector<uint8_t> raw((istreambuf_iterator<char>(ifs)), istreambuf_iterator<char>());
-            try {
-                QrCode qr3 = QrCode::encodeBinary(raw, QrCode::Ecc::LOW);
-                cout << "   Version: " << qr3.getVersion() << ", Size: " << qr3.getSize() << "x" << qr3.getSize() << endl;
-                SaveQrCodeAsPpm(qr3, "output/test_qr/raw_data.ppm", 20);
-            } catch (...) {}
-        }
-    }
 
 public:
 
@@ -88,18 +50,7 @@ public:
         // 生成二维码图像并保存
         for (size_t i = 0; i < frames.size(); ++i)
         {
-            const QrCode qr = QrCode::encodeBinary(frames[i], QrCode::Ecc::LOW);  // 使用 Ecc::LOW 提高容量
-
-            // 调试输出 - QR码信息
-            if (i == 0)  // 仅第一帧
-            {
-                cout << "\n=== QR Code Info ===" << endl;
-                cout << "Frame data size: " << frames[i].size() << " bytes" << endl;
-                cout << "QR Version: " << qr.getVersion() << endl;
-                cout << "QR Size: " << qr.getSize() << "x" << qr.getSize() << " modules" << endl;
-                cout << "With 20x scale: " << (qr.getSize() * 20) << "x" << (qr.getSize() * 20) << " pixels" << endl;
-            }
-
+            const QrCode qr = QrCode::encodeBinary(frames[i], QrCode::Ecc::LOW);
             string path = "output/frames/frame_" + to_string(i) + ".ppm";
             SaveQrCodeAsPpm(qr, path);
         }
